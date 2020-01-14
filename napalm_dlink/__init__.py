@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
-"""napalm-skeleton package."""
-from napalm_skeleton.skeleton import SkeletonDriver  # noqa
+"""napalm-dlink package."""
+from napalm_dlink.dlink import DlinkDriver  # noqa
 
-__all__ = ('SkeletonDriver',)
+__all__ = ('DlinkDriver',)
