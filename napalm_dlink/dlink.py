@@ -30,7 +30,13 @@ from napalm.base.exceptions import (
     CommandErrorException,
     ConnectionClosedException
 )
+from napalm.base.helpers import (
+    canonical_interface_name,
+    transform_lldp_capab,
+    textfsm_extractor,
+)
 from napalm.base.netmiko_helpers import netmiko_args
+from napalm.base.utils import py23_compat
 
 
 class DlinkDriver(NetworkDriver):
@@ -110,3 +116,60 @@ class DlinkDriver(NetworkDriver):
             except (socket.error, EOFError):
                 # If unable to send, we can tell for sure that the connection is unusable
                 return {"is_alive": False}
+
+    def get_optics(self):
+        """ I am not found universal command. Add this method in future. """
+        pass
+
+    def get_lldp_neighbors(self):
+        """Dlink implementation of get_lldp_neighbors."""
+
+        lldp = {}
+        neighbors_detail = self.get_lldp_neighbors_detail()
+        for intf_name, entries in neighbors_detail.items():
+            lldp[intf_name] = []
+            for lldp_entry in entries:
+                hostname = lldp_entry["remote_system_name"]
+                # Match Dlink behaviour of taking remote chassis ID
+                # When lacking a system name (in show lldp neighbors)
+                if not hostname:
+                    hostname = lldp_entry["remote_chassis_id"]
+                lldp_dict = {"port": lldp_entry["remote_port"], "hostname": hostname}
+                lldp[intf_name].append(lldp_dict)
+
+        return lldp
+
+    def get_lldp_neighbors_detail(self, interface=""):
+        lldp = {}
+
+        if interface:
+            command = "show lldp remote_ports {} mode detailed".format(interface)
+        else:
+            command = "show lldp remote_ports mode detailed"
+        lldp_entries = self._send_command(command)
+        lldp_entries = textfsm_extractor(
+            self, "show_lldp_remote_ports_detail", lldp_entries
+        )
+
+        if len(lldp_entries) == 0:
+            return {}
+
+        for idx, lldp_entry in enumerate(lldp_entries):
+            local_intf = lldp_entry.pop("local_interface")
+            # Add fields missing on Dlink
+            lldp_entry["parent_interface"] = lldp_entry["remote_system_enable_capab"] = ""
+
+            # Standarding "remote system capab"
+            if lldp_entry["remote_system_capab"] and isinstance(
+                                                                lldp_entry["remote_system_capab"],
+                                                                py23_compat.string_types
+                                                               ):
+                lldp_entry["remote_system_capab"] = sorted(lldp_entry["remote_system_capab"].strip().lower().split(","))
+            else:
+                lldp_entry["remote_system_capab"] = []
+            # Turn the interfaces into their long version
+            local_intf = canonical_interface_name(local_intf)
+            lldp.setdefault(local_intf, [])
+            lldp[local_intf].append(lldp_entry)
+
+        return lldp
