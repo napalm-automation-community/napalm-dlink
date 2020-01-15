@@ -38,6 +38,7 @@ from napalm.base.helpers import (
 )
 from napalm.base.netmiko_helpers import netmiko_args
 from napalm.base.utils import py23_compat
+from napalm.base.helpers import mac
 
 HOUR_SECONDS = 3600
 DAY_SECONDS = 24 * HOUR_SECONDS
@@ -210,7 +211,9 @@ class DlinkDriver(NetworkDriver):
         return uptime_sec
 
     def get_facts(self):
-        """Return a set of facts from the devices."""
+        """Return a set of facts from the devices.
+        TODO: Variable show_ports collect many values from the device, but not return from function yet.
+        """
         # default values.
         serial_number, fqdn, os_version, hostname, domain_name = ("Unknown",) * 5
 
@@ -218,7 +221,7 @@ class DlinkDriver(NetworkDriver):
         show_switch = textfsm_extractor(
             self, "show_switch", show_switch
         )[0]
-        print(show_switch["uptime"])
+
         uptime = self.parse_uptime(show_switch["uptime"])
         vendor = "Dlink"
         os_version = show_switch["os_version"]
@@ -241,3 +244,54 @@ class DlinkDriver(NetworkDriver):
             "fqdn": fqdn,
             "interface_list": interface_list,
         }
+
+    def get_interfaces(self):
+        pass
+
+    def get_interfaces_ip(self):
+        pass
+
+    def get_interfaces_counters(self):
+        pass
+
+    def get_environment(self):
+        pass
+
+    def get_arp_table(self, vrf=""):
+        """
+        Device does not support VRF. Using age as is configured on device, not real aging time.
+        Get arp table information.
+
+        Return a list of dictionaries having the following set of keys:
+            * interface (string)
+            * mac (string)
+            * ip (string)
+            * age (float)
+
+        For example::
+            [
+                {
+                    'interface' : 'MgmtEth0/RSP0/CPU0/0',
+                    'mac'       : '5c:5e:ab:da:3c:f0',
+                    'ip'        : '172.17.17.1',
+                    'age'       : 1454496274.84
+                },
+                {
+                    'interface': 'MgmtEth0/RSP0/CPU0/0',
+                    'mac'       : '66:0e:94:96:e0:ff',
+                    'ip'        : '172.17.17.2',
+                    'age'       : 1435641582.49
+                }
+            ]
+        """
+        arp_table = []
+
+        show_arpentry = self._send_command("show arpentry")
+        show_arpentry = textfsm_extractor(self, "show_arpentry", show_arpentry)
+
+        for row in show_arpentry:
+            row["mac"] = mac(row["mac"])
+            row["age"] = int(row["age"]) * 60
+            arp_table.append(row)
+
+        return arp_table
