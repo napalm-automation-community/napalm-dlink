@@ -18,6 +18,7 @@ Napalm driver for Dlink.
 
 Read https://napalm.readthedocs.io for more information.
 """
+import re
 import socket
 import telnetlib
 
@@ -38,6 +39,10 @@ from napalm.base.helpers import (
 from napalm.base.netmiko_helpers import netmiko_args
 from napalm.base.utils import py23_compat
 
+HOUR_SECONDS = 3600
+DAY_SECONDS = 24 * HOUR_SECONDS
+WEEK_SECONDS = 7 * DAY_SECONDS
+YEAR_SECONDS = 365 * DAY_SECONDS
 
 class DlinkDriver(NetworkDriver):
     """Napalm driver for Dlink."""
@@ -173,3 +178,66 @@ class DlinkDriver(NetworkDriver):
             lldp[local_intf].append(lldp_entry)
 
         return lldp
+
+    @staticmethod
+    def parse_uptime(uptime_str):
+        """
+        Extract the uptime string from the given Cisco IOS Device.
+
+        Return the uptime in seconds as an integer
+        """
+        # Initialize to zero
+        days = hours = minutes = seconds = 0
+
+        uptime_str = uptime_str.strip()
+        time_list = uptime_str.split(",")
+        for element in time_list:
+            if re.search("days", element):
+                days = int(element.split()[0])
+            elif re.search("hrs", element):
+                hours = int(element.split()[0])
+            elif re.search("min", element):
+                minutes = int(element.split()[0])
+            elif re.search("secs", element):
+                seconds = int(element.split()[0])
+
+        uptime_sec = (
+            (days * DAY_SECONDS)
+            + (hours * 3600)
+            + (minutes * 60)
+            + seconds
+        )
+        return uptime_sec
+
+    def get_facts(self):
+        """Return a set of facts from the devices."""
+        # default values.
+        serial_number, fqdn, os_version, hostname, domain_name = ("Unknown",) * 5
+
+        show_switch = self._send_command("show switch")
+        show_switch = textfsm_extractor(
+            self, "show_switch", show_switch
+        )[0]
+        print(show_switch["uptime"])
+        uptime = self.parse_uptime(show_switch["uptime"])
+        vendor = "Dlink"
+        os_version = show_switch["os_version"]
+        serial_number = show_switch["serial_number"]
+        model = show_switch["model"]
+        # In Dlink device can't change hostname. Add system_name.
+        hostname = fqdn = show_switch["system_name"]
+
+        # Get interface list
+        show_ports = self._send_command("show ports")
+        interface_list = re.findall(r'^\d+', show_ports, re.MULTILINE)
+
+        return {
+            "uptime": uptime,
+            "vendor": vendor,
+            "os_version": py23_compat.text_type(os_version),
+            "serial_number": py23_compat.text_type(serial_number),
+            "model": py23_compat.text_type(model),
+            "hostname": py23_compat.text_type(hostname),
+            "fqdn": fqdn,
+            "interface_list": interface_list,
+        }
