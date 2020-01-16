@@ -217,9 +217,9 @@ class DlinkDriver(NetworkDriver):
         # default values.
         serial_number, fqdn, os_version, hostname, domain_name = ("Unknown",) * 5
 
-        show_switch = self._send_command("show switch")
+        output = self._send_command("show switch")
         show_switch = textfsm_extractor(
-            self, "show_switch", show_switch
+            self, "show_switch", output
         )[0]
 
         uptime = self.parse_uptime(show_switch["uptime"])
@@ -286,12 +286,96 @@ class DlinkDriver(NetworkDriver):
         """
         arp_table = []
 
-        show_arpentry = self._send_command("show arpentry")
-        show_arpentry = textfsm_extractor(self, "show_arpentry", show_arpentry)
+        output = self._send_command("show arpentry")
+        show_arpentry = textfsm_extractor(self, "show_arpentry", output)
 
-        for row in show_arpentry:
-            row["mac"] = mac(row["mac"])
-            row["age"] = int(row["age"]) * 60
-            arp_table.append(row)
+        for line in show_arpentry:
+            line["mac"] = mac(line["mac"])
+            line["age"] = int(line["age"]) * 60
+            arp_table.append(line)
 
         return arp_table
+
+    def cli(self, commands):
+        """
+        Execute a list of commands and return the output in a dictionary format using the command
+        as the key.
+
+        Example input:
+        ['show clock', 'show calendar']
+
+        Output example:
+        {   'show calendar': u'22:02:01 UTC Thu Feb 18 2016',
+            'show clock': u'*22:01:51.165 UTC Thu Feb 18 2016'}
+
+        """
+        cli_output = dict()
+        if type(commands) is not list:
+            raise TypeError("Please enter a valid list of commands!")
+
+        for command in commands:
+            output = self._send_command(command)
+            cli_output.setdefault(command, {})
+            cli_output[command] = output
+
+        return cli_output
+
+    def get_ntp_peers(self):
+        pass
+
+    def get_ntp_servers(self):
+        pass
+
+    def get_ntp_stats(self):
+        pass
+
+    def get_mac_address_table(self):
+        """
+        Returns a lists of dictionaries. Each dictionary represents an entry in the MAC Address
+        Table, having the following keys
+            * mac (string)
+            * interface (string)
+            * vlan (int)
+            * active (boolean)
+            * static (boolean)
+            * moves (int)
+            * last_move (float)
+
+        Format:
+        VID  VLAN Name                        MAC Address       Port Type
+        ---- -------------------------------- ----------------- ---- ---------------
+        903  ACswmgmt              C0-A0-BB-DB-7D-C5 CPU  Self
+        903  ACswmgmt             28-8A-1C-A8-1A-96 25   Dynamic
+        903  ACswmgmt              70-62-B8-A8-94-13 25   Dynamic
+        """
+        mac_address_table = []
+
+        output = self._send_command("show fdb")
+        show_fdb = textfsm_extractor(self, "show_fdb", output)
+
+        for line in show_fdb:
+            mac_addr = mac(line["mac"])
+            interface = line["interface"]
+            vlan = int(line["vlan"])
+            static = False
+
+            if line["mac_type"].lower() in ["self", "static", "system"]:
+                static = True
+
+            if (line["interface"].lower() == "cpu"
+                or re.search(r"router", line["mac_type"].lower())
+                or re.search(r"switch", line["mac_type"].lower())
+            ):
+                interface = ""
+
+            mac_address_table.append({
+                "mac": mac_addr,
+                "interface": interface,
+                "vlan": vlan,
+                "static": static,
+                "active": True,
+                "moves": -1,
+                "last_move": -1.0,
+            })
+
+        return mac_address_table
