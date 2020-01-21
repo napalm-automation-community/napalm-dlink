@@ -31,6 +31,8 @@ from napalm.base.exceptions import (
     CommandErrorException,
     ConnectionClosedException
 )
+
+import napalm.base.constants as C
 from napalm.base.helpers import (
     canonical_interface_name,
     transform_lldp_capab,
@@ -211,9 +213,7 @@ class DlinkDriver(NetworkDriver):
         return uptime_sec
 
     def get_facts(self):
-        """Return a set of facts from the devices.
-        TODO: Variable show_ports collect many values from the device, but not return from function yet.
-        """
+        """ Return a set of facts from the devices. """
         # default values.
         serial_number, fqdn, os_version, hostname, domain_name = ("Unknown",) * 5
 
@@ -243,6 +243,31 @@ class DlinkDriver(NetworkDriver):
             "hostname": py23_compat.text_type(hostname),
             "fqdn": fqdn,
             "interface_list": interface_list,
+
+            # Additional data
+            "mac_addr": mac(show_switch["mac_addr"]),
+            "ip_addr": show_switch["ip_addr"],
+            "vlan_name": show_switch["vlan_name"],
+            "subnet_mask": show_switch["subnet_mask"],
+            "gateway": show_switch["gateway"],
+            "boot_version": show_switch["boot_version"],
+            "protocol_version": show_switch["protocol_version"],
+            "hardware_version": show_switch["hardware_version"],
+            "system_time": show_switch["system_time"],
+            "location": show_switch["location"],
+            "contact": show_switch["contact"],
+            "stp": show_switch["stp"],
+            "gvrp": show_switch["gvrp"],
+            "igmp_snooping": show_switch["igmp_snooping"],
+            "radius": show_switch["radius"],
+            "telnet": show_switch["telnet"],
+            "web": show_switch["web"],
+            "rmon": show_switch["rmon"],
+            "ssh": show_switch["ssh"],
+            "vlan_trunk": show_switch["vlan_trunk"],
+            "syslog": show_switch["syslog"],
+            "cli_paging": show_switch["cli_paging"],
+            "password_encryption": show_switch["password_encryption"],
         }
 
     def get_interfaces(self):
@@ -379,3 +404,204 @@ class DlinkDriver(NetworkDriver):
             })
 
         return mac_address_table
+
+    def get_snmp_information(self):
+        """
+        Returns a dict of dicts
+
+        Example Output:
+
+        {   'chassis_id': u'Asset Tag 54670',
+        'community': {   u'private': {   'acl': u'12', 'mode': u'rw'},
+                         u'public': {   'acl': u'11', 'mode': u'ro'},
+                         u'public_named_acl': {   'acl': u'ALLOW-SNMP-ACL',
+                                                  'mode': u'ro'},
+                         u'public_no_acl': {   'acl': u'N/A', 'mode': u'ro'}},
+        'contact': u'Joe Smith',
+        'location': u'123 Anytown USA Rack 404'}
+
+        """
+        # TODO: Command 'show config current_config include snmp' too slow. Maybe require to use separated commands.
+        # TODO: Add output from 'create snmp group...'
+        # show_switch = self.get_facts()
+        #
+        #
+        #
+        # snmp_dict = {
+        #     "chassis_id": "unknown",
+        #     "community": {},
+        #     "contact": show_switch["contact"] or "unknown",
+        #     "location": show_switch["location"] or "unknown",
+        # }
+        #
+        # return snmp_dict
+        mode_short = {
+            "ReadOnly": "ro",
+            "ReadWrite": "rw"
+        }
+
+        command = "show config current_config include snmp"
+        output = self._send_command(command)
+        snmp = textfsm_extractor(self, "snmp", output)[0]
+        communities = textfsm_extractor(self, "snmp_community", output)
+
+        chassis_id = snmp["chassis_id"] or "unknown"
+        contact = snmp["contact"] or "unknown"
+        location = snmp["location"] or "unknown"
+        community_dict = {}
+
+        for line in communities:
+            community_name = line["community"]
+            mode = line["mode"]
+
+            community_dict[community_name] = {
+                "acl": "N/A",
+                "mode": mode_short[mode]
+            }
+
+        return {
+            "chassis_id": chassis_id,
+            "community": community_dict,
+            "contact": contact,
+            "location": location,
+        }
+
+    def get_users(self):
+        """
+        Returns a dictionary with the configured users.
+        The keys of the main dictionary represents the username.
+        The values represent the details of the user,
+        represented by the following keys:
+
+            * level (int)
+            * password (str)
+            * sshkeys (list)
+
+        *Note: sshkeys on ios is the ssh key fingerprint
+
+        The level is an integer between 0 and 15, where 0 is the
+        lowest access and 15 represents full access to the device.
+        """
+        users = {}
+        int_levels = {
+            "admin": 15,
+            "operator": 10,
+            "power-user": 5,
+            "user": 0,
+        }
+        command = "show config current_config"
+        output = self._send_command(command)
+        user_fsm = textfsm_extractor(self, "users", output)
+
+        for line in user_fsm:
+            user = line["user"]
+            level = line["level"]
+
+            users[user] = {
+                "level": int_levels.get(level, -1),
+                "sshkeys": "N/A"
+            }
+
+        return users
+
+    def ping(
+        self,
+        destination,
+        source=C.PING_SOURCE,
+        ttl=C.PING_TTL,
+        timeout=C.PING_TIMEOUT,
+        size=C.PING_SIZE,
+        count=C.PING_COUNT,
+        vrf=C.PING_VRF,
+    ):
+        """
+                Execute ping on the device and returns a dictionary with the result.
+
+                Output dictionary has one of following keys:
+                    * success
+                    * error
+                In case of success, inner dictionary will have the following keys:
+                    * probes_sent (int)
+                    * packet_loss (int)
+                    * rtt_min (float)
+                    * rtt_max (float)
+                    * rtt_avg (float)
+                    * rtt_stddev (float)
+                    * results (list)
+                'results' is a list of dictionaries with the following keys:
+                    * ip_address (str)
+                    * rtt (float)
+
+                    This device does not permit more than two keys in the same time with command 'ping'.
+                """
+        ping_dict = {}
+
+        command = "ping {}".format(destination)
+        command += " size {}".format(size)
+        command += " times {}".format(count)
+        command += " timeout {}".format(timeout)
+
+        output = self._send_command(command)
+        if "Reply Not Received" in output or "% Ping Failed" in output:
+            ping_dict["error"] = output
+        else:
+            ping_dict["success"] = {
+                "probes_sent": 0,
+                "packet_loss": 0,
+                "rtt_min": 0.0,
+                "rtt_max": 0.0,
+                "rtt_avg": 0.0,
+                "rtt_stddev": 0.0,
+                "results": [],
+            }
+
+            rtt = re.findall(r'TimeTaken : <?(\d+) (\S+)', output, re.M)
+            rtt_stat = []
+            for r in list(rtt):
+                rtt_time = int(r[0])
+                if "secs" in r:
+                    rtt_stat.append(rtt_time * 1000)
+                else:
+                    rtt_stat.append(rtt_time)
+
+            statistic = re.search(
+                r"(?P<probes_sent>\d+) Packets Transmitted, "
+                r"(?P<probes_received>\d+) Packets Received, ",
+                output
+            ).groupdict()
+
+            probes_sent = int(statistic["probes_sent"])
+            probes_received = int(statistic["probes_received"])
+            ping_dict["success"]["probes_sent"] = probes_sent
+            ping_dict["success"]["packet_loss"] = probes_sent - probes_received
+
+            rtt_min = min(rtt_stat)
+            rtt_max = max(rtt_stat)
+            rtt_avg = sum(rtt_stat) // len(rtt_stat)
+
+            ping_dict["success"].update(
+                {
+                    "rtt_min": rtt_min,
+                    "rtt_avg": rtt_avg,
+                    "rtt_max": rtt_max,
+                }
+            )
+
+            results_array = []
+            for r in rtt_stat:
+                results_array.append(
+                    {
+                        "ip_address": py23_compat.text_type(destination),
+                        "rtt": r,
+                    }
+                )
+            ping_dict["success"].update({"results": results_array})
+
+        return ping_dict
+
+    def get_config(self, retrieve="all", full=False):
+        """Implementation of get_config for Dlink """
+        command = "show config current_config"
+        output = self._send_command(command)
+
+        return output

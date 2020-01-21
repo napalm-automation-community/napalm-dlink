@@ -10,7 +10,9 @@ Value OS_VERSION (\S+)
 Value HARDWARE_VERSION (\S+)
 Value SERIAL_NUMBER (\S+)
 Value SYSTEM_NAME (\S+)
+Value LOCATION (.+)
 Value UPTIME (.+)
+Value CONTACT (.+)
 Value SYSTEM_TIME (.+)
 Value STP (\S+)
 Value GVRP (\S+)
@@ -38,7 +40,9 @@ Start
   ^System Hardware Version +: ${HARDWARE_VERSION}
   ^System Serial Number +: ${SERIAL_NUMBER}
   ^System Name +: ${SYSTEM_NAME}
+  ^System Location +: ${LOCATION}
   ^System up time +: ${UPTIME}
+  ^System Contact +: ${CONTACT}
   ^System Time +: ${SYSTEM_TIME}
   ^STP +: ${STP}
   ^GVRP +: ${GVRP}
