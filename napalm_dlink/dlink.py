@@ -159,19 +159,23 @@ class DlinkDriver(NetworkDriver):
         Returns (return_status, msg)
         """
         return_status = False
-
+        remote_file = dest_file or "1"
         if source_file and source_config:
             raise ValueError("Cannot simultaneously set source_file and source_config")
 
         if source_config:
             source_config = self._dlink_format_config(source_config)
             tmp_file = self._create_tmp_file(source_config)
-            command = "download cfg_fromTFTP {} {} config_id 1".format(self.tftp_server, tmp_file)
+            command = "download cfg_fromTFTP {} {} config_id {}".format(self.tftp_server, tmp_file, remote_file)
+            if self.config_replace:
+                command += " increment"
             output = self._send_command(command)
             if tmp_file and os.path.isfile(tmp_file):
                 os.remove(tmp_file)
         elif source_file:
-            command = "download cfg_fromTFTP {} {} config_id 1".format(self.tftp_server, source_file)
+            command = "download cfg_fromTFTP {} {} config_id {}".format(self.tftp_server, source_file, remote_file)
+            if self.config_replace:
+                command += " increment"
             output = self._send_command(command)
 
         msg = output
@@ -182,7 +186,7 @@ class DlinkDriver(NetworkDriver):
 
     def load_replace_candidate(self, filename=None, config=None):
         """
-        SCP file to device filesystem, defaults to candidate_config.
+        file to device filesystem, defaults to candidate_config.
 
         Return None or raise exception
         """
@@ -194,6 +198,21 @@ class DlinkDriver(NetworkDriver):
         )
         if not return_status:
             raise ReplaceConfigException(msg)
+
+    def load_merge_candidate(self, filename=None, config=None):
+        """
+        SCP file to remote device.
+
+        Merge configuration in: copy <file> running-config
+        """
+        self.config_replace = False
+        return_status, msg = self._load_candidate_wrapper(
+            source_file=filename,
+            source_config=config,
+            dest_file=self.merge_cfg,
+        )
+        if not return_status:
+            raise MergeConfigException(msg)
 
     def compare_config(self):
         """ TODO: I will add in the future. """

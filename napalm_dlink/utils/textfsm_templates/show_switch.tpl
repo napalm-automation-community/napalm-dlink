@@ -34,16 +34,16 @@ Start
   ^VLAN Name +: ${VLAN_NAME}
   ^Subnet Mask +: ${SUBNET_MASK}
   ^Default Gateway +: ${GATEWAY}
-  ^System Boot Version +: ${BOOT_VERSION}
-  ^System Protocol Version +: ${PROTOCOL_VERSION}
-  ^System Firmware Version +: ${OS_VERSION}
-  ^System Hardware Version +: ${HARDWARE_VERSION}
-  ^System Serial Number +: ${SERIAL_NUMBER}
-  ^System Name +: ${SYSTEM_NAME}
-  ^System Location +: ${LOCATION}
-  ^System up time +: ${UPTIME}
-  ^System Contact +: ${CONTACT}
-  ^System Time +: ${SYSTEM_TIME}
+  ^.*Boot Version +: ${BOOT_VERSION}
+  ^.*Protocol Version +: ${PROTOCOL_VERSION}
+  ^.*Firmware Version +: ${OS_VERSION}
+  ^.*Hardware Version +: ${HARDWARE_VERSION}
+  ^.*Serial Number +: ${SERIAL_NUMBER}
+  ^.*Name +: ${SYSTEM_NAME}
+  ^.*Location +: ${LOCATION}
+  ^.*[uU]p ?time +: ${UPTIME}
+  ^.*Contact +: ${CONTACT}
+  ^Time +: ${SYSTEM_TIME}
   ^STP +: ${STP}
   ^GVRP +: ${GVRP}
   ^IGMP Snooping +: ${IGMP_SNOOPING}
