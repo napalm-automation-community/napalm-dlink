@@ -21,6 +21,12 @@ Read https://napalm.readthedocs.io for more information.
 import re
 import socket
 import telnetlib
+import tempfile
+import uuid
+import os
+
+from netmiko import FileTransfer, InLineTransfer
+import tftpy
 
 from napalm.base import NetworkDriver
 from napalm.base.exceptions import (
@@ -63,15 +69,21 @@ class DlinkDriver(NetworkDriver):
 
         self.transport = optional_args.get("transport", "ssh")
 
-        if self.transport == "telnet":
-            # Telnet only supports inline_transfer
-            self.inline_transfer = True
+        # Retrieve file names
+        self.candidate_cfg = optional_args.get("candidate_cfg", "candidate_config.txt")
+        self.merge_cfg = optional_args.get("merge_cfg", "merge_config.txt")
+        self.rollback_cfg = optional_args.get("rollback_cfg", "rollback_config.txt")
+        self.inline_transfer = optional_args.get("inline_transfer", True)
 
         self.netmiko_optional_args = netmiko_args(optional_args)
 
         # Set the default port if not set
         default_port = {"ssh": 22, "telnet": 23}
         self.netmiko_optional_args.setdefault("port", default_port[self.transport])
+
+        self.config_replace = False
+
+        self.tftp_server = optional_args.get("tftp_server")
 
     def open(self):
         """Open a connection to the device."""
@@ -124,6 +136,76 @@ class DlinkDriver(NetworkDriver):
             except (socket.error, EOFError):
                 # If unable to send, we can tell for sure that the connection is unusable
                 return {"is_alive": False}
+
+    @staticmethod
+    def _create_tmp_file(config):
+        """Write temp file and for use with inline config and SCP."""
+        tmp_dir = tempfile.gettempdir()
+        filename = py23_compat.text_type(uuid.uuid4())
+        filename_path = os.path.join(tmp_dir, filename)
+        with open(filename_path, "wt") as fobj:
+            fobj.write(config)
+        return filename
+
+    def _dlink_format_config(self, config):
+        return "command-start\n" + config + "\ncommand-end"
+
+    def _load_candidate_wrapper(
+        self, source_file=None, source_config=None, dest_file=None
+    ):
+        """
+        Transfer file to remote device for either merge or replace operations
+
+        Returns (return_status, msg)
+        """
+        return_status = False
+
+        if source_file and source_config:
+            raise ValueError("Cannot simultaneously set source_file and source_config")
+
+        if source_config:
+            source_config = self._dlink_format_config(source_config)
+            tmp_file = self._create_tmp_file(source_config)
+            command = "download cfg_fromTFTP {} {} config_id 1".format(self.tftp_server, tmp_file)
+            output = self._send_command(command)
+            if tmp_file and os.path.isfile(tmp_file):
+                os.remove(tmp_file)
+        elif source_file:
+            command = "download cfg_fromTFTP {} {} config_id 1".format(self.tftp_server, source_file)
+            output = self._send_command(command)
+
+        msg = output
+        if "successful" in output:
+            return_status = True
+
+        return (return_status, msg)
+
+    def load_replace_candidate(self, filename=None, config=None):
+        """
+        SCP file to device filesystem, defaults to candidate_config.
+
+        Return None or raise exception
+        """
+        self.config_replace = True
+        return_status, msg = self._load_candidate_wrapper(
+            source_file=filename,
+            source_config=config,
+            dest_file=self.candidate_cfg,
+        )
+        if not return_status:
+            raise ReplaceConfigException(msg)
+
+    def compare_config(self):
+        """ TODO: I will add in the future. """
+        # running_config = self.get_config()
+        # if self.config_replace:
+        #     new_file = self.candidate_cfg
+        # else:
+        #     new_file = self.merge_cfg
+        #
+        # from difflib import ndiff
+        # diff = ndiff(running_config.splitlines(keepends=True), new_file.splitlines(keepends=True))
+        # return ''.join(diff)
 
     def get_optics(self):
         """ I am not found universal command. Add this method in future. """
