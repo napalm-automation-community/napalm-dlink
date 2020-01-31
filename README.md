@@ -3,6 +3,9 @@ Requirements
 ************
 For driver needs a preconfigured TFTP server because Dlink devices can download config only from TFTP/FTP server. 
 Default path: /tmp
+************
+Tested on device Dlink 1210-28
+************
 
 Сompletion status:
 - [x] _send_command
@@ -31,8 +34,5 @@ Default path: /tmp
 - [x] get_snmp_information
 - [x] get_users
 - [x] ping
-- [x]
-- [x]
-- [x]
 - [ ] traceroute
 - [x] get_config
