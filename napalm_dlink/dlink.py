@@ -369,7 +369,47 @@ class DlinkDriver(NetworkDriver):
         }
 
     def get_interfaces(self):
-        pass
+        """
+         Get interface details.
+         last_flapped and mac_address is not implemented
+         Example Output:
+         {   u'Vlan1': {   'description': u'N/A',
+                       'is_enabled': True,
+                       'is_up': True,
+                       'last_flapped': -1.0,
+                       'mac_address': u'a493.4cc1.67a7',
+                       'speed': 100},
+         u'Vlan100': {   'description': u'Data Network',
+                         'is_enabled': True,
+                         'is_up': True,
+                         'last_flapped': -1.0,
+                         'mac_address': u'a493.4cc1.67a7',
+                         'speed': 100},
+         u'Vlan200': {   'description': u'Voice Network',
+                         'is_enabled': True,
+                         'is_up': True,
+                         'last_flapped': -1.0,
+                         'mac_address': u'a493.4cc1.67a7',
+                         'speed': 100}}
+         """
+        interface_dict = {}
+
+        command = "show ports description"
+        output = self._send_command(command)
+
+        raw_interfaces = textfsm_extractor(self, "show_ports", output)
+
+        for raw_interface in raw_interfaces:
+            interface_dict[raw_interface["interface"]] = {
+                "is_enabled": True if raw_interface["is_enabled"] == "Enabled" else False,
+                "is_up": True if "Down" not in raw_interface["is_up"] else False,
+                "description": raw_interface["description"].strip(),
+                "mac_address": "",
+                "last_flapped": -1.0,
+                "speed": raw_interface["speed"],
+            }
+
+        return interface_dict
 
     def get_interfaces_ip(self):
         pass

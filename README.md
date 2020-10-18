@@ -20,7 +20,7 @@ Tested on device Dlink 1210-28
 - [x] get_lldp_neighbors
 - [x] get_lldp_neighbors_detail
 - [x] get_facts
-- [ ] get_interfaces
+- [x] get_interfaces
 - [ ] get_interfaces_ip
 - [ ] get_interfaces_counters
 - [ ] get_environment
