@@ -25,8 +25,8 @@ import tempfile
 import uuid
 import os
 
-from netmiko import FileTransfer, InLineTransfer
-import tftpy
+# from netmiko import FileTransfer, InLineTransfer
+# import tftpy
 
 from napalm.base import NetworkDriver
 from napalm.base.exceptions import (
@@ -45,13 +45,13 @@ from napalm.base.helpers import (
     textfsm_extractor,
 )
 from napalm.base.netmiko_helpers import netmiko_args
-from napalm.base.utils import py23_compat
 from napalm.base.helpers import mac
 
 HOUR_SECONDS = 3600
 DAY_SECONDS = 24 * HOUR_SECONDS
 WEEK_SECONDS = 7 * DAY_SECONDS
 YEAR_SECONDS = 365 * DAY_SECONDS
+
 
 class DlinkDriver(NetworkDriver):
     """Napalm driver for Dlink."""
@@ -141,9 +141,9 @@ class DlinkDriver(NetworkDriver):
     def _create_tmp_file(config):
         """Write temp file and for use with inline config and SCP."""
         tmp_dir = tempfile.gettempdir()
-        filename = py23_compat.text_type(uuid.uuid4())
-        filename_path = os.path.join(tmp_dir, filename)
-        with open(filename_path, "wt") as fobj:
+        rand_fname = str(uuid.uuid4())
+        filename = os.path.join(tmp_dir, rand_fname)
+        with open(filename, "wt") as fobj:
             fobj.write(config)
         return filename
 
@@ -269,10 +269,7 @@ class DlinkDriver(NetworkDriver):
             lldp_entry["parent_interface"] = lldp_entry["remote_system_enable_capab"] = ""
 
             # Standarding "remote system capab"
-            if lldp_entry["remote_system_capab"] and isinstance(
-                                                                lldp_entry["remote_system_capab"],
-                                                                py23_compat.string_types
-                                                               ):
+            if lldp_entry["remote_system_capab"]:
                 lldp_entry["remote_system_capab"] = sorted(lldp_entry["remote_system_capab"].strip().lower().split(","))
             else:
                 lldp_entry["remote_system_capab"] = []
@@ -338,10 +335,10 @@ class DlinkDriver(NetworkDriver):
         return {
             "uptime": uptime,
             "vendor": vendor,
-            "os_version": py23_compat.text_type(os_version),
-            "serial_number": py23_compat.text_type(serial_number),
-            "model": py23_compat.text_type(model),
-            "hostname": py23_compat.text_type(hostname),
+            "os_version": str(os_version),
+            "serial_number": str(serial_number),
+            "model": str(model),
+            "hostname": str(hostname),
             "fqdn": fqdn,
             "interface_list": interface_list,
 
@@ -692,7 +689,7 @@ class DlinkDriver(NetworkDriver):
             for r in rtt_stat:
                 results_array.append(
                     {
-                        "ip_address": py23_compat.text_type(destination),
+                        "ip_address": str(destination),
                         "rtt": r,
                     }
                 )
