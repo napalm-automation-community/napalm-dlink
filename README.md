@@ -22,7 +22,7 @@ Tested on device Dlink 1210-28
 - [x] get_facts
 - [x] get_interfaces
 - [x] get_interfaces_ip
-- [ ] get_interfaces_counters
+- [x] get_interfaces_counters
 - [ ] get_environment
 - [x] get_arp_table
 - [x] cli
