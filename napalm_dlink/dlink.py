@@ -448,7 +448,39 @@ class DlinkDriver(NetworkDriver):
         return interfaces
 
     def get_interfaces_counters(self):
-        pass
+        """
+        Return interface counters and errors.
+        'tx_errors': int,
+        'rx_errors': int,
+        'tx_discards': int,
+        'rx_discards': int,
+        'tx_octets': int,
+        'rx_octets': int,
+        'tx_unicast_packets': int,
+        'rx_unicast_packets': int,
+        'tx_multicast_packets': int,
+        'rx_multicast_packets': int,
+        'tx_broadcast_packets': int,
+        'rx_broadcast_packets': int,
+        Currently doesn't determine output broadcasts, multicasts
+        """
+        counters = {}
+        interface_count = len(self.get_interfaces())
+
+        command_counters = "show packet ports 1-{}".format(interface_count)
+        output_counter = self._send_command(command_counters)
+        raw_counters = textfsm_extractor(self, "get_interfaces_counters", output_counter)
+        raw_counters = {row.pop("interface"): row for row in raw_counters}
+
+        command_errors = "show error ports 1-{}".format(interface_count)
+        output_errors = self._send_command(command_errors)
+        raw_errors = textfsm_extractor(self, "get_interfaces_errors", output_errors)
+        for raw_error in raw_errors:
+            interface = raw_error.pop("interface")
+            counters[interface] = {**raw_counters[interface], **raw_error}
+        # counters = {row["interface"]: {**raw_counters[row.pop("interface")], **row} for row in raw_errors}
+
+        return counters
 
     def get_environment(self):
         pass
