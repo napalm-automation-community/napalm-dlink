@@ -26,11 +26,11 @@ Tested on device Dlink 1210-28
 - [ ] get_environment
 - [x] get_arp_table
 - [x] cli
-- [ ] get_ntp_peers
-- [ ] get_ntp_servers
+- [ ] get_ntp_peers (D-Link doesn't support this option)
+- [x] get_ntp_servers
 - [ ] get_ntp_stats
 - [x] get_mac_address_table
-- [ ] get_probes_config
+- [ ] get_probes_config (D-Link doesn't support this option)
 - [x] get_snmp_information
 - [x] get_users
 - [x] ping

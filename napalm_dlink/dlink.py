@@ -47,6 +47,7 @@ from napalm.base.helpers import (
 )
 from napalm.base.netmiko_helpers import netmiko_args
 from napalm.base.helpers import mac
+from napalm.base import constants as c
 
 HOUR_SECONDS = 3600
 DAY_SECONDS = 24 * HOUR_SECONDS
@@ -478,7 +479,6 @@ class DlinkDriver(NetworkDriver):
         for raw_error in raw_errors:
             interface = raw_error.pop("interface")
             counters[interface] = {**raw_counters[interface], **raw_error}
-        # counters = {row["interface"]: {**raw_counters[row.pop("interface")], **row} for row in raw_errors}
 
         return counters
 
@@ -548,11 +548,15 @@ class DlinkDriver(NetworkDriver):
 
         return cli_output
 
-    def get_ntp_peers(self):
-        pass
+    # def get_ntp_peers(self):
+    #     """D-Link doesn't support this option"""
 
     def get_ntp_servers(self):
-        pass
+        """Support only SNTP"""
+        command = "show sntp"
+        output = self._send_command(command)
+        sntp_servers = textfsm_extractor(self, "get_ntp_servers", output)
+        return {server: {} for server in sntp_servers[0]["servers"]}
 
     def get_ntp_stats(self):
         pass
@@ -808,3 +812,20 @@ class DlinkDriver(NetworkDriver):
         output = self._send_command(command)
 
         return output
+
+    # def traceroute(
+    #     self,
+    #     destination,
+    #     source=c.TRACEROUTE_SOURCE,
+    #     ttl=c.TRACEROUTE_TTL,
+    #     timeout=c.TRACEROUTE_TIMEOUT,
+    #     vrf=c.TRACEROUTE_VRF,
+    # ):
+    #     """Ignored options 'source' and 'VRF' because D-Link doesn't support it."""
+    #
+    #     command = f"traceroute {destination} max-ttl {ttl} timeout {timeout}".format(
+    #         destination=destination,
+    #         ttl=ttl,
+    #         timeout=timeout
+    #     )
+    #     output = self._send_command(command)
